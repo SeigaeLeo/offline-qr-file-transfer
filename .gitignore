@@ -1,0 +1,36 @@
+# .NET / Visual Studio
+**/bin/
+**/obj/
+.vs/
+*.user
+*.suo
+
+# Android / Gradle
+.gradle/
+**/.gradle/
+**/build/
+local.properties
+*.apk
+*.aab
+
+# Signing keys and secrets
+*.jks
+*.keystore
+key.properties
+signing.properties
+.env
+.env.*
+
+# Generated deliverables and local toolchains
+tools/
+发布成品/
+artifacts/
+*.exe
+*.pdb
+*.zip
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

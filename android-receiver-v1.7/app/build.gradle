@@ -1,0 +1,49 @@
+plugins {
+    id "com.android.application"
+}
+
+def externalAppBuildDir = System.getenv("QTX17_ANDROID_APP_BUILD_DIR")
+if (externalAppBuildDir) {
+    layout.buildDirectory.set(file(externalAppBuildDir))
+}
+
+android {
+    namespace "com.qtx1.receiver"
+    compileSdk 36
+
+    defaultConfig {
+        applicationId "com.qtx1.receiver"
+        minSdk 24
+        targetSdk 36
+        versionCode 17
+        versionName "1.7"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    sourceSets {
+        main {
+            assets.srcDirs = ["../../mobile-receiver-v1.7"]
+        }
+    }
+}
+
+dependencies {
+    implementation "androidx.webkit:webkit:1.17.0"
+    implementation "androidx.activity:activity:1.10.1"
+    implementation "androidx.camera:camera-core:1.5.2"
+    implementation "androidx.camera:camera-camera2:1.5.2"
+    implementation "androidx.camera:camera-lifecycle:1.5.2"
+    implementation "androidx.camera:camera-view:1.5.2"
+    implementation "io.github.zxing-cpp:android:3.1.1"
+}

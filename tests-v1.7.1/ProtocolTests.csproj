@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="..\windows-sender-v1.7.1\TransferProtocol.cs" Link="TransferProtocol.cs" />
+    <Compile Include="..\windows-sender-v1.7.1\QrModuleBitmap.cs" Link="QrModuleBitmap.cs" />
+    <Compile Include="..\windows-sender-v1.7.1\FramePlaybackEngine.cs" Link="FramePlaybackEngine.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="QRCoder" Version="1.8.0" />
+  </ItemGroup>
+</Project>
