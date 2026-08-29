@@ -1,0 +1,16 @@
+jsQR 1.4.0
+Source: https://github.com/cozmo/jsQR
+License: Apache License 2.0
+Vendored file: vendor/jsQR.js
+
+该文件随接收端本地分发，运行时不访问 CDN。
+
+ZXing-C++ Android 3.1.1
+Source: https://github.com/zxing-cpp/zxing-cpp
+License: Apache License 2.0
+Usage: Android APK 原生二维码定位和解码，直接读取 CameraX Y Plane。
+
+AndroidX CameraX 1.5.2
+Source: https://developer.android.com/jetpack/androidx/releases/camera
+License: Apache License 2.0
+Usage: 原生相机预览、YUV 图像分析与 KEEP_ONLY_LATEST 背压策略。

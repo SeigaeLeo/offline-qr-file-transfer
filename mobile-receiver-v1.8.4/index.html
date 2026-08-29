@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#07111f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>离线二维码接收器 V1.8.4</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css?v=1.8.4">
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">QTX1-W · OPTICAL TRANSFER</p>
+        <h1>离线二维码接收器 V1.8.4</h1>
+        <p class="intro">把摄像头对准电脑上的动态二维码。漏掉的帧会在下一轮自动补齐。</p>
+      </div>
+      <span class="offline-badge">无需网络传输</span>
+    </header>
+
+    <section class="scanner-card" aria-label="二维码扫描区域">
+      <div class="viewport" id="viewport">
+        <video id="video" playsinline muted></video>
+        <div class="shade" aria-hidden="true"></div>
+        <div class="scan-box" aria-hidden="true">
+          <i></i><i></i><i></i><i></i>
+        </div>
+        <div class="distance-guide" id="distanceGuide" aria-live="polite">
+          <strong id="distanceTitle">把完整二维码放入方框</strong>
+          <span id="distanceDetail">四周白边不要超出框外</span>
+        </div>
+        <div class="camera-placeholder" id="cameraPlaceholder">
+          <span class="camera-icon">◎</span>
+          <span>点击下方按钮开启后置摄像头</span>
+        </div>
+      </div>
+
+      <div class="camera-controls" id="cameraControls" hidden>
+        <label for="cameraSelect">
+          <span>当前摄像头</span>
+          <select id="cameraSelect" aria-label="选择摄像头"></select>
+        </label>
+        <button class="secondary" id="switchCameraButton" disabled>切换摄像头</button>
+      </div>
+
+      <div class="developer-toggle-row">
+        <div>
+          <strong>开发者模式</strong>
+          <span>解码器、ROI 策略和性能诊断</span>
+        </div>
+        <label class="timing-toggle" for="developerModeToggle">
+          <input type="checkbox" id="developerModeToggle">
+          <span aria-hidden="true"></span>
+          <strong id="developerModeLabel">关闭</strong>
+        </label>
+      </div>
+
+      <div class="developer-panel" id="developerPanel" hidden>
+        <div class="decoder-controls">
+          <label for="decoderModeSelect">
+            <span>二维码解码引擎</span>
+            <select id="decoderModeSelect" aria-label="选择二维码解码引擎">
+              <option value="auto">自动选择（APK 优先 ZXing-C++）</option>
+              <option value="zxingcpp">强制原生 ZXing-C++</option>
+              <option value="native">强制 BarcodeDetector</option>
+              <option value="jsqr">强制本地 jsQR</option>
+            </select>
+          </label>
+          <p id="decoderAvailability">APK 将直接读取 CameraX Y Plane；网页端检查 BarcodeDetector</p>
+        </div>
+
+        <div class="relocation-controls">
+          <label for="relocationModeSelect">
+            <span>ROI 重新定位策略</span>
+            <select id="relocationModeSelect" aria-label="选择 jsQR 重新定位策略">
+              <option value="adaptive">自适应：缓存连续失败后重定位</option>
+              <option value="fixed">固定间隔：每 N 帧重定位</option>
+            </select>
+          </label>
+          <label id="relocationIntervalLabel" for="relocationIntervalInput" hidden>
+            <span>重新定位间隔</span>
+            <span class="number-input"><input id="relocationIntervalInput" type="number" min="2" max="300" step="1" value="30"> 帧</span>
+          </label>
+          <button class="secondary apply-relocation" id="applyRelocationButton" hidden>应用帧数</button>
+          <p id="relocationDescription">仅在缓存位置连续解码失败2次后，下一帧执行完整定位。</p>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="primary" id="startButton">开始扫描</button>
+        <button class="secondary" id="stopButton" disabled>停止摄像头</button>
+        <button class="ghost" id="resetButton">清除当前任务</button>
+      </div>
+      <p class="engine" id="engineLabel">等待摄像头启动</p>
+    </section>
+
+    <section class="transfer-card">
+      <div class="status-row">
+        <div>
+          <p class="label">当前状态</p>
+          <h2 id="statusText">尚未开始</h2>
+          <p class="transfer-timer"><span>二维码布局</span><strong id="layoutStatus">等待元数据</strong></p>
+          <p class="transfer-timer"><span>本次传输耗时</span><strong id="transferElapsed">00:00.0</strong></p>
+        </div>
+        <span class="status-dot" id="statusDot" aria-hidden="true"></span>
+      </div>
+
+      <div class="file-panel" id="filePanel" hidden>
+        <p class="file-name" id="fileName"></p>
+        <p class="file-meta" id="fileMeta"></p>
+      </div>
+
+      <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressTrack">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+      <div class="progress-caption">
+        <strong id="progressPercent">0%</strong>
+        <span id="progressDetail">0 / 0 帧</span>
+      </div>
+
+      <div class="missing-card" id="missingCard" hidden>
+        <div class="missing-heading">
+          <strong>还缺 <span id="missingCount">0</span> 帧</strong>
+          <span>以下编号可输入电脑端“指定补帧”</span>
+        </div>
+        <div class="missing-list" id="missingFrames" aria-live="polite"></div>
+        <p>编号从 1 开始，与电脑端输入框一致。收到补帧后此列表会自动更新。</p>
+      </div>
+
+      <div class="metrics">
+        <div><span>有效帧</span><strong id="validFrames">0</strong></div>
+        <div><span>重复帧</span><strong id="duplicateFrames">0</strong></div>
+        <div><span>校验失败</span><strong id="crcErrors">0</strong></div>
+        <div><span>平均速度</span><strong id="speed">0 B/s</strong></div>
+      </div>
+
+      <div class="message" id="message">手机端需要提前保存本页面；传输过程中可以保持飞行模式。</div>
+    </section>
+
+    <section class="complete-card" id="completeCard" hidden>
+      <div class="complete-mark">✓</div>
+      <div>
+        <p class="label">SHA-256 校验成功</p>
+        <h2>文件已完整接收</h2>
+        <p id="completeSummary"></p>
+      </div>
+      <div class="complete-actions">
+        <button class="primary new-transfer" id="newTransferButton"><span aria-hidden="true">↻</span> 开始接收新文件</button>
+        <button class="primary" id="downloadButton">保存文件</button>
+        <button class="secondary" id="previewButton" hidden>即时预览</button>
+        <button class="secondary" id="shareButton" hidden>转发并删除</button>
+      </div>
+      <div class="preview-panel" id="previewPanel" hidden>
+        <img id="imagePreview" alt="接收到的图片预览" hidden>
+        <video id="videoPreview" controls playsinline preload="metadata" hidden></video>
+        <pre id="textPreview" class="text-preview" hidden></pre>
+        <p id="previewMessage" hidden></p>
+      </div>
+    </section>
+
+    <details class="help-card">
+      <summary>扫不到或速度很慢？</summary>
+      <ul>
+        <li>让完整二维码和四周白边都进入取景框。</li>
+        <li>2800 字节接近 L 级容量上限并保留少量余量，二维码仍然非常密集；建议 3～4 FPS / 二维码 100%，识别困难时降低每帧字节数。</li>
+        <li>避免屏幕反光，保持手机稳定，等待自动对焦完成。</li>
+        <li>相机/相册系统权限不等于网页摄像头权限；`file://` 或 `content://` 本地文件在很多手机浏览器中会被直接禁止。</li>
+        <li>若页面提示“摄像头 API 不可用”，需要通过 HTTPS 安装为 PWA，或使用 Android 安装版。</li>
+      </ul>
+    </details>
+
+    <section class="performance-card" id="performanceCard" aria-labelledby="performanceTitle" hidden>
+      <div class="performance-heading">
+        <div>
+          <p class="label">可选性能诊断</p>
+          <h2 id="performanceTitle">每帧各阶段平均耗时</h2>
+        </div>
+        <label class="timing-toggle" for="timingToggle">
+          <input type="checkbox" id="timingToggle">
+          <span aria-hidden="true"></span>
+          <strong id="timingToggleLabel">关闭</strong>
+        </label>
+      </div>
+      <p class="performance-off-note" id="timingOffNote">默认关闭；关闭时不采集计时数据，也不刷新耗时界面。</p>
+      <div id="timingDetails" hidden>
+        <div class="timing-summary">
+          <p class="timing-engine" id="timingEngine">开启摄像头后开始统计</p>
+          <strong id="timingSamples">0 帧样本</strong>
+        </div>
+        <div class="roi-diagnostics">
+          <div><span>缓存 ROI 帧</span><strong id="cachedRoiSamples">0</strong></div>
+          <div><span>缓存帧平均 TOTAL</span><strong id="cachedRoiAverage">—</strong></div>
+          <div><span>完整定位帧</span><strong id="relocateSamples">0</strong></div>
+          <div><span>定位帧平均 TOTAL</span><strong id="relocateAverage">—</strong></div>
+          <div><span>单次定位平均 QR detect</span><strong id="relocateDetectAverage">—</strong></div>
+          <div><span>失败触发重定位</span><strong id="failureRelocateCount">0</strong></div>
+        </div>
+        <div class="timing-grid" role="table" aria-label="每帧各阶段平均耗时">
+          <div class="timing-emphasis" role="row"><span role="rowheader">Detector 耗时</span><strong role="cell" id="timingDetector">—</strong></div>
+          <div class="timing-emphasis" role="row"><span role="rowheader">结果排队等待</span><strong role="cell" id="timingResultWait">—</strong></div>
+          <div role="row"><span role="rowheader">Camera capture</span><strong role="cell" id="timingCameraCapture">—</strong></div>
+          <div role="row"><span role="rowheader">Camera frame interval</span><strong role="cell" id="timingCameraInterval">—</strong></div>
+          <div role="row"><span role="rowheader">Frame copy</span><strong role="cell" id="timingFrameCopy">—</strong></div>
+          <div role="row"><span role="rowheader">ROI crop</span><strong role="cell" id="timingRoiCrop">—</strong></div>
+          <div role="row"><span role="rowheader">Grayscale</span><strong role="cell" id="timingGrayscale">—</strong></div>
+          <div role="row"><span role="rowheader">QR detect</span><strong role="cell" id="timingQrDetect">—</strong></div>
+          <div role="row"><span role="rowheader">QR decode</span><strong role="cell" id="timingQrDecode">—</strong></div>
+          <div role="row"><span role="rowheader">RS correction</span><strong role="cell" id="timingRsCorrection">—</strong></div>
+          <div role="row"><span role="rowheader">Protocol / storage</span><strong role="cell" id="timingProtocol">—</strong></div>
+          <div role="row"><span role="rowheader">UI update</span><strong role="cell" id="timingUiUpdate">—</strong></div>
+          <div class="timing-native-row" id="timingNativeRow" role="row" hidden><span role="rowheader">Native pipeline combined</span><strong role="cell" id="timingNativeCombined">—</strong></div>
+          <div class="timing-native-row" id="timingNativeResultRow" role="row" hidden><span role="rowheader">Native result handling</span><strong role="cell" id="timingNativeResult">—</strong></div>
+          <div role="row"><span role="rowheader">Scan-loop overhead</span><strong role="cell" id="timingOverhead">—</strong></div>
+          <div class="timing-total" role="row"><span role="rowheader">End-to-end TOTAL</span><strong role="cell" id="timingTotal">—</strong></div>
+        </div>
+        <div class="engine-comparison">
+          <h3>本次诊断对比</h3>
+          <div class="comparison-grid" role="table" aria-label="解码引擎性能对比">
+            <div class="comparison-head" role="row"><span role="columnheader">引擎</span><span role="columnheader">样本</span><span role="columnheader">识别率</span><span role="columnheader">平均管线</span><span role="columnheader">平均 TOTAL</span></div>
+            <div role="row"><strong role="rowheader">原生内核</strong><span id="compareNativeSamples">0</span><span id="compareNativeRate">—</span><span id="compareNativePipeline">—</span><span id="compareNativeTotal">—</span></div>
+            <div role="row"><strong role="rowheader">本地 jsQR</strong><span id="compareJsQrSamples">0</span><span id="compareJsQrRate">—</span><span id="compareJsQrPipeline">—</span><span id="compareJsQrTotal">—</span></div>
+          </div>
+          <p>切换引擎会重新统计上方阶段均值，但保留本表，方便在相同距离、FPS 和二维码大小下比较。</p>
+        </div>
+        <p class="timing-note" id="timingNote">平均值按本次扫描期间实际处理的相机帧累计；未识别出二维码的帧也计入。</p>
+      </div>
+
+      <div class="diagnostic-tools">
+        <article class="diagnostic-module">
+          <div class="diagnostic-module-heading">
+            <div><strong>1. 解码耗时分布</strong><span>记录最近512帧的 P50 / P95 / P99 / 最大值</span></div>
+            <label class="timing-toggle" for="distributionToggle"><input type="checkbox" id="distributionToggle"><span aria-hidden="true"></span><strong id="distributionToggleLabel">关闭</strong></label>
+          </div>
+          <div class="diagnostic-details" id="distributionDetails" hidden>
+            <p class="diagnostic-summary"><span>样本</span><strong id="distributionSamples">0</strong></p>
+            <div class="diagnostic-grid five-columns">
+              <div><span>平均</span><strong id="distributionAverage">—</strong></div><div><span>P50</span><strong id="distributionP50">—</strong></div><div><span>P95</span><strong id="distributionP95">—</strong></div><div><span>P99</span><strong id="distributionP99">—</strong></div><div><span>最大</span><strong id="distributionMax">—</strong></div>
+            </div>
+            <p class="diagnostic-note">统计解码管线 TOTAL，用于发现平均值看不出来的耗时尖峰。</p>
+          </div>
+        </article>
+
+        <article class="diagnostic-module">
+          <div class="diagnostic-module-heading">
+            <div><strong>2. ZXing 失败分类</strong><span>开启 ReturnErrors，区分未找到、格式和校验/纠错失败</span></div>
+            <label class="timing-toggle" for="zxingErrorsToggle"><input type="checkbox" id="zxingErrorsToggle"><span aria-hidden="true"></span><strong id="zxingErrorsToggleLabel">关闭</strong></label>
+          </div>
+          <div class="diagnostic-details" id="zxingErrorsDetails" hidden>
+            <div class="diagnostic-grid">
+              <div><span>成功</span><strong id="zxingSuccess">0</strong></div><div><span>未找到二维码</span><strong id="zxingNoSymbol">0</strong></div><div><span>Format</span><strong id="zxingFormat">0</strong></div><div><span>Checksum / RS</span><strong id="zxingChecksum">0</strong></div><div><span>Unsupported</span><strong id="zxingUnsupported">0</strong></div><div><span>异常</span><strong id="zxingException">0</strong></div>
+            </div>
+            <p class="diagnostic-note" id="zxingErrorsNote">仅 APK 的原生 ZXing-C++ 管线可用。</p>
+          </div>
+        </article>
+
+        <article class="diagnostic-module">
+          <div class="diagnostic-module-heading">
+            <div><strong>3. 图像质量指标</strong><span>每15个相机分析帧采样一次，避免每帧增加负担</span></div>
+            <label class="timing-toggle" for="qualityToggle"><input type="checkbox" id="qualityToggle"><span aria-hidden="true"></span><strong id="qualityToggleLabel">关闭</strong></label>
+          </div>
+          <div class="diagnostic-details" id="qualityDetails" hidden>
+            <div class="diagnostic-grid">
+              <div><span>采样</span><strong id="qualitySamples">0</strong></div><div><span>平均亮度</span><strong id="qualityBrightness">—</strong></div><div><span>对比度</span><strong id="qualityContrast">—</strong></div><div><span>清晰度</span><strong id="qualitySharpness">—</strong></div><div><span>暗部截断</span><strong id="qualityBlackClip">—</strong></div><div><span>高光过曝</span><strong id="qualityWhiteClip">—</strong></div>
+            </div>
+            <p class="diagnostic-note">亮度范围0～255；对比度和清晰度越高通常越容易解码。</p>
+          </div>
+        </article>
+
+        <article class="diagnostic-module">
+          <div class="diagnostic-module-heading">
+            <div><strong>4. 失败画面采样</strong><span>最多保留最近12张失败 ROI，采样间隔不小于350ms</span></div>
+            <label class="timing-toggle" for="failureSamplesToggle"><input type="checkbox" id="failureSamplesToggle"><span aria-hidden="true"></span><strong id="failureSamplesToggleLabel">关闭</strong></label>
+          </div>
+          <div class="diagnostic-details" id="failureSamplesDetails" hidden>
+            <div class="failure-sample-toolbar"><span id="failureSamplesCount">0 / 12 张</span><button class="secondary compact-button" id="clearFailureSamplesButton">清空图片</button></div>
+            <div class="failure-gallery" id="failureGallery"><p>尚无失败画面。</p></div>
+            <p class="diagnostic-note">生成缩略图有额外开销，只在需要观察混帧、失焦或反光时开启。</p>
+          </div>
+        </article>
+
+        <article class="diagnostic-module">
+          <div class="diagnostic-module-heading">
+            <div><strong>5. 相机曝光参数</strong><span>读取 Camera2 实际拍摄结果，观察快门与发送帧率是否匹配</span></div>
+            <label class="timing-toggle" for="exposureToggle"><input type="checkbox" id="exposureToggle"><span aria-hidden="true"></span><strong id="exposureToggleLabel">关闭</strong></label>
+          </div>
+          <div class="diagnostic-details" id="exposureDetails" hidden>
+            <p class="diagnostic-summary"><span>样本</span><strong id="exposureSamples">0</strong></p>
+            <div class="diagnostic-grid">
+              <div><span>当前快门</span><strong id="exposureShutter">—</strong></div><div><span>曝光时长</span><strong id="exposureCurrent">—</strong></div><div><span>ISO</span><strong id="exposureIso">—</strong></div><div><span>帧周期</span><strong id="exposureFrameDuration">—</strong></div><div><span>传感器帧率</span><strong id="exposureFps">—</strong></div><div><span>曝光/帧周期</span><strong id="exposureRatio">—</strong></div>
+            </div>
+            <div class="diagnostic-grid five-columns">
+              <div><span>平均曝光</span><strong id="exposureAverage">—</strong></div><div><span>P50</span><strong id="exposureP50">—</strong></div><div><span>P95</span><strong id="exposureP95">—</strong></div><div><span>最短</span><strong id="exposureMin">—</strong></div><div><span>最长</span><strong id="exposureMax">—</strong></div>
+            </div>
+            <p class="diagnostic-note">仅 APK 原生相机管线可用。默认关闭；开启后低频刷新界面，关闭即停止采集。</p>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <canvas id="decodeCanvas" hidden></canvas>
+  <script src="vendor/jsQR.js"></script>
+  <script src="app.js?v=1.8.4"></script>
+</body>
+</html>
